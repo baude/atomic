@@ -15,6 +15,7 @@ import Atomic.util as util
 import Atomic.satellite as satellite
 import Atomic.pulp as pulp
 import dbus
+from datetime import datetime
 
 try:
     from subprocess import DEVNULL  # pylint: disable=no-name-in-module
@@ -85,6 +86,8 @@ class Atomic(object):
                 "-i",
                 "--name", "${NAME}",
                 "${IMAGE}"]
+
+    INSTALL_FILE = "/etc/atomic.d/install"
 
     def __init__(self):
         self.d = docker.Client()
@@ -377,7 +380,6 @@ class Atomic(object):
     def run(self):
         missing_RUN = False
         self.inspect = self._inspect_container()
-
         if self.inspect:
             self._check_latest()
             # Container exists
@@ -394,7 +396,9 @@ class Atomic(object):
 
             self.update()
             self.inspect = self._inspect_image()
-
+        if not self.args.nocheck:
+            image_id = self.inspect['Id']
+            self.check_install(image_id)
         if self.spc:
             if self.command:
                 args = self.SPC_ARGS + self.command
@@ -553,6 +557,10 @@ class Atomic(object):
             self.writeOut("/usr/bin/docker rmi %s" % self.image)
             subprocess.check_call(["/usr/bin/docker", "rmi", self.image])
 
+        # Remove the image from atomic.d/install
+        image_id = self.inspect['Id']
+        self.remove_install(image_id)
+
     @property
     def cmd_env(self):
         env = dict(os.environ)
@@ -691,8 +699,11 @@ class Atomic(object):
         cmd = self.gen_cmd(args + list(map(pipes.quote, self.args.args)))
 
         self.display(cmd)
+        image_id = self.inspect['Id']
+        self.set_install(image_id)
         if not self.args.display:
             return subprocess.check_call(cmd, env=self.cmd_env, shell=True)
+
 
     def help(self):
         if os.path.exists("/usr/bin/rpm-ostree"):
@@ -980,6 +991,83 @@ class Atomic(object):
         if not self.containers:
             self.containers = self.d.containers(all=True)
         return self.containers
+
+
+    def check_install(self, iid):
+        '''
+        Executed prior to atomic run, this function takes an
+        image iid and determines if atomic install has been
+        run or not. Throws an Error if the image has an
+        INSTALL label but cannot find evidence of it ever
+        having been installed.
+        '''
+        if not self._has_install(iid):
+            # The image does not have an INSTALL label
+            return True
+
+        no_check = 'You can pass --nocheck to atomic run to override this.'
+
+        install_error = ("\n'{0}' has an INSTALL label, which suggests you "
+                         "should run 'atomic install' first but we were not "
+                         "able to verify if it has been installed prior or "
+                         "not.  Either run 'atomic install' or rerun "
+                         "'atomic run' with the --nocheck option.\n"
+                         .format(self.image))
+
+        if not os.path.exists(self.INSTALL_FILE):
+                raise ValueError(install_error)
+
+        try:
+            input_data = json.loads(open(self.INSTALL_FILE).read())
+            if iid in input_data.keys():
+                return True
+            else:
+                raise ValueError(install_error)
+        except ValueError:
+            # The file may be present but have nothing in it, which
+            # is just fine.
+            pass
+
+        # If we get here, we couldn't find any record of it
+        raise ValueError(install_error)
+
+    def _has_install(self, docker_id):
+        '''
+        Returns True or False as to whether the image has a 
+        LABEL install
+        '''
+        if self.get_label('INSTALL', image=docker_id) is not "":
+            return True
+        else:
+            return False
+
+    def set_install(self, iid):
+        try:
+            install_data = json.loads(open(self.INSTALL_FILE).read())
+        except Exception:
+            # File does not exist
+            install_data = {}
+        install_data[iid] = {
+                'installed': True,
+                'date': str(datetime.today()),
+                'image_name': self.image
+                }
+        with open(self.INSTALL_FILE, 'w') as install_out:
+            json.dump(install_data, install_out)
+
+    def remove_install(self, iid):
+        try:
+            install_data = json.loads(open(self.INSTALL_FILE).read())
+            if iid in install_data.keys():
+                del install_data[iid]
+            # write the file
+            with open(self.INSTALL_FILE, 'w') as install_out:
+                json.dump(install_data, install_out)
+        except Exception:
+            # No file, nothing to do
+            # No entry, nothing to remove
+            return
+
 
 
 class AtomicError(Exception):

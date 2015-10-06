@@ -334,6 +334,9 @@ if __name__ == '__main__':
     runp.add_argument("--spc", default=False, action="store_true",
                       help=_("use super privileged container mode: '%s'" %
                              atomic.print_spc()))
+    runp.add_argument("--nocheck", default=False, action="store_true",
+                      help=_("disables checking if atomic install has "
+                             "been run"))
     runp.add_argument("image", help=_("container image"))
     runp.add_argument("command", nargs=argparse.REMAINDER,
                       help=_("command to execute within the container. "
