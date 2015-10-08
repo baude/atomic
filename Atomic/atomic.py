@@ -457,12 +457,14 @@ class Atomic(object):
         try:
             oscap_d = bus.get_object(BUS_NAME, OBJECT_PATH)
             oscap_i = dbus.Interface(oscap_d, INTERFACE)
-            scan_return = json.loads(oscap_i.scan_list(scan_list, 4))
-        except dbus.exceptions.DBusException:
-            error = "Unable to find the openscap-daemon dbus service. "\
-                    "Either start the openscap-daemon service or pull and run"\
-                    " the openscap-daemon image"
-            sys.stderr.write("\n{0}\n\n".format(error))
+            scan_return = json.loads(oscap_i.scan_list(scan_list, 4, self.args.only_cache))
+        except dbus.exceptions.DBusException, e:
+            message = "The openscap-daemon returned: {0}".format(e.get_dbus_message())
+            if e.get_dbus_name() == 'org.freedesktop.DBus.Error.ServiceUnknown':
+                message = "Unable to find the openscap-daemon dbus service. "\
+                          "Either start the openscap-daemon service or pull " \
+                          "and run the openscap-daemon image"
+            sys.stderr.write("\n{0}\n\n".format(message))
             sys.exit(1)
 
         if self.args.json:
