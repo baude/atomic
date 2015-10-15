@@ -448,21 +448,15 @@ class DockerMount(Mount):
         """
         Devicemapper unmount backend.
         """
-        pool = self.client.info()['DriverStatus'][0][1]
-        dev = Mount.get_dev_at_mountpoint(self.mountpoint)
+	def _get_all_cids():
+	    return [x['Id'] for x in self.client.containers(all=True)]
 
-        dev_name = dev.replace('/dev/mapper/', '')
-        if not dev_name.startswith(pool.rsplit('-', 1)[0]):
+	dev = Mount.get_dev_at_mountpoint(self.mountpoint)
+	cid = dev.split("-")[-1]
+	dev_name = dev.replace('/dev/mapper/', '')
+        if cid not in _get_all_cids():
             raise MountError('Device mounted at {} is not a docker container.'
                              ''.format(self.mountpoint))
-
-        cid = dev_name.replace(pool.replace('pool', ''), '')
-        try:
-            self.client.inspect_container(cid)
-        except docker.errors.APIError:
-            raise MountError('Failed to associate device {0} mounted at {1} '
-                             'with any container.'.format(dev_name,
-                                                          self.mountpoint))
 
         Mount.unmount_path(self.mountpoint)
         cinfo = self.client.inspect_container(cid)
