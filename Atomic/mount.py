@@ -126,6 +126,10 @@ class Mount:
         """
         Subprocess call to mount dev at path.
         """
+        print "source: {}".format(source)
+        print "target: {}".format(target)
+        print "bind: {}".format(bind)
+
         cmd = ['mount']
         if bind:
             cmd.append('--bind')
@@ -134,6 +138,7 @@ class Mount:
             cmd.append(optstring)
         cmd.append(source)
         cmd.append(target)
+        print "cmd: {}".format(cmd)
         r = util.subp(cmd)
         if r.return_code != 0:
             raise MountError('Could not mount docker container:\n' +
@@ -275,6 +280,7 @@ class DockerMount(Mount):
         the host filesystem.
         """
         driver = self.client.info()['Driver']
+        print "driver: {}".format(driver)
         driver_mount_fn = getattr(self, "_mount_" + driver,
                                   self._unsupported_backend)
         driver_mount_fn(identifier, options)
@@ -440,6 +446,7 @@ class DockerMount(Mount):
         Unmounts and cleans-up after a previous mount().
         """
         driver = self.client.info()['Driver']
+        print "driver: {}".format(driver)
         driver_unmount_fn = getattr(self, "_unmount_" + driver,
                                     self._unsupported_backend)
         driver_unmount_fn()
@@ -448,18 +455,23 @@ class DockerMount(Mount):
         """
         Devicemapper unmount backend.
         """
-	def _get_all_cids():
-	    return [x['Id'] for x in self.client.containers(all=True)]
+        def _get_all_cids():
+            return [x['Id'] for x in self.client.containers(all=True)]
 
-	dev = Mount.get_dev_at_mountpoint(self.mountpoint)
-	cid = dev.split("-")[-1]
-	dev_name = dev.replace('/dev/mapper/', '')
+        dev = Mount.get_dev_at_mountpoint(self.mountpoint)
+        cid = dev.split("-")[-1]
+        dev_name = dev.replace('/dev/mapper/', '')
+        print "dev: {0}".format(dev)
+        print "cid: {0}".format(cid)
+        print "dev_name: {0}".format(dev_name)
         if cid not in _get_all_cids():
             raise MountError('Device mounted at {} is not a docker container.'
                              ''.format(self.mountpoint))
 
         Mount.unmount_path(self.mountpoint)
         cinfo = self.client.inspect_container(cid)
+        print "mount: {0}".format(self.mountpoint)
+        print "cinfo: {}".format(cinfo)
 
         # Was the container live mounted? If so, done.
         # TODO: Container.Config.Env should be {} (iterable) not None.

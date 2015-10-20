@@ -833,6 +833,7 @@ class Atomic(object):
 
             # only need to bind-mount on the devicemapper driver
             if self.d.info()['Driver'] == 'devicemapper':
+                print "debug: dm"
                 mount.Mount.mount_path(os.path.join(self.args.mountpoint,
                                                     "rootfs"),
                                        self.args.mountpoint, bind=True)
