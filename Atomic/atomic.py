@@ -377,10 +377,110 @@ class Atomic(object):
         command += self.image
         return command
 
+    def restart(self):
+        def _get_cons_matching_image(self, image_id):
+            '''
+            Stub function that returns a list of containers
+            that match an image indentifier in format of:
+                [(iid, container_names, cid), (...)]
+            '''
+            return [(x['Image'], x['Names'], x['Id']) for x in
+                    self.get_containers() if x['Image'] == image_id or
+                    x['Image'] == self.args.image]
+
+        base_image = None
+        con_id = None
+        image_id = None
+        # Were we given a container name/id?
+        try:
+            con_id = self._is_container(self.args.image)
+            base_image = self.inspect['Config']['Image']
+            # Input was a container, make sure it is running
+            if not self.inspect['State']['Running']:
+                util.writeOut("\n{0} is not currently running\n\n"
+                              .format(self.args.image))
+                sys.exit(1)
+        except AtomicError:
+            pass
+
+        if con_id is None:
+            try:
+                image_id = self._is_image(self.args.image)
+            except AtomicError:
+                raise ValueError("\nUnable associate {0} with any container "
+                                 "or image\n".format(self.args.image))
+        if  image_id is not None:
+            # The input was an image
+            cons = _get_cons_matching_image(self, image_id)
+            if len(cons) > 1:
+                mults = []
+                for image, names, _con_id in cons:
+                    mults.append("{0} ({1})"
+                                 .format(_con_id[:12],
+                                         ", ".join([x[1:] for x in names])))
+                raise ValueError("\nUnable to associate {0} with any "
+                                 "containers but there appears to be multiple "
+                                 "containers based on the image {1}"
+                                 ":\n      - {2}\n"
+                                 .format(self.args.image,
+                                         self.args.image,
+                                         "\n      - ".join(mults)))
+
+            elif len(cons) == 0:
+                raise ValueError("\nUnable to find any containers associated "
+                                 "with '{0}'\n".format(self.args.image))
+            else:
+                # len(cons) must be 0
+                con_id = cons[0][2]
+                self.name = con_id
+                self.inspect = self._inspect_container(name=self.name)
+                base_image = self.inspect['Config']['Image']
+
+        con_env = self.get_env_as_dict()
+        if not 'ATOMIC' in con_env or not con_env['ATOMIC']:
+            raise ValueError("{0} was not run with atomic and therefore "
+                             "cannot be restarted.".format(self.name))
+
+
+        #print util.output_json(self.inspect)
+        if self.inspect['Config']['Tty']:
+            util.writeOut("\nWARNING: You are restarting a container that"
+                          " was outputting to a TTY.  You will now enter the "
+                          "container's namespace on this terminal.\n")
+        # Stop the container
+        self.stop()
+
+        try:
+            self.d.start(con_id)
+        except Exception:
+            # The image must be using --rm
+            self.name = base_image
+            self.image = base_image
+            self._inspect_image(image=base_image)
+            self.args.display = False
+            if 'ATOMIC_CMD' in con_env:
+                self.command = [con_env['ATOMIC_CMD']]
+            if 'ATOMIC_SPC' in con_env:
+                self.spc = True
+            self.run()
+
+
+
     def run(self):
+        def add_atomic_envs(args):
+            if args[1] == 'run':
+                after_run_index = args.index("run") + 1
+            elif args[1] == 'create':
+                after_run_index = args.index("create") + 1
+            args.insert(after_run_index,  "--env ATOMIC=True")
+            if self.spc:
+                args.insert(after_run_index, "--env ATOMIC_SPC=True")
+            if self.command:
+                args.insert(after_run_index, "--env ATOMIC_CMD='{}'".format(" ".join(self.command)))
+            return args
+
         missing_RUN = False
         self.inspect = self._inspect_container()
-
         if self.inspect:
             self._check_latest()
             # Container exists
@@ -388,7 +488,6 @@ class Atomic(object):
                 return self._running()
             elif not self.args.display:
                 return self._start()
-
         # Container does not exist
         self.inspect = self._inspect_image()
         if not self.inspect:
@@ -397,30 +496,37 @@ class Atomic(object):
 
             self.update()
             self.inspect = self._inspect_image()
-
         if self.spc:
             if self.command:
-                args = self.SPC_ARGS + self.command
+                args = add_atomic_envs(self.SPC_ARGS)
+                args += self.command
             else:
-                args = self.SPC_ARGS + self._get_cmd()
+                args = add_atomic_envs(self.SPC_ARGS )
+                args += self._get_cmd()
 
             cmd = self.gen_cmd(args)
         else:
             args = self._get_args("RUN")
+            # If a RUN LABEL exists
             if args:
-                args += self.command
+                args = add_atomic_envs(args)
+                if self.command:
+                    args += self.command
             else:
                 missing_RUN = True
                 if self.command:
-                    args = self.RUN_ARGS + self.command
+                    args = add_atomic_envs(self.RUN_ARGS)
+                    args += self.command
                 else:
-                    args = self.RUN_ARGS + self._get_cmd()
+                    args = add_atomic_envs(self.RUN_ARGS)
+                    args += self._get_cmd()
 
+            # Generates the cmd line that will be run which includes
+            # the docker command, the image name, and any command to
+            # be run.
             cmd = self.gen_cmd(args)
-            self.display(cmd)
             if self.args.display:
                 return
-
             if missing_RUN:
                 subprocess.check_call(cmd, env=self.cmd_env,
                                       shell=True, stderr=DEVNULL,
@@ -606,7 +712,13 @@ class Atomic(object):
                 env['SUDO_GID'] = str(pwd.getpwuid(int(env["SUDO_UID"]))[3])
             except:
                 env["SUDO_GID"] = default_uid
-
+        env['ATOMIC'] = 'True'
+        if self.spc:
+            env['SPC_ARGS'] = " ".join(self.SPC_ARGS)
+        if self.command:
+            env['ATOMIC_CMD'] = "{}".format(self.command)
+        if self.spc:
+            env['ATOMIC_SPC'] = 'True'
         return env
 
     def gen_cmd(self, cargs):
@@ -626,6 +738,16 @@ class Atomic(object):
                 continue
             args.append(c)
         return " ".join(args)
+
+    def get_env_as_dict(self):
+        envs = self.inspect['Config']['Env']
+        env_dict = {}
+        for env in envs:
+            env_var, env_val = env.split("=")
+            env_dict[env_var] = env_val
+        return env_dict
+
+
 
     def info(self):
         """
@@ -930,11 +1052,11 @@ class Atomic(object):
         # The identifier might be a partial name?
         con_ids = []
         for con in cons:
-            for name in con['Names']:
-                if name.startswith("/{0}".format(identifier)):
-                    con_ids.append(con['Id'])
-                    break
-
+            if con['Names'] is not None:
+                for name in con['Names']:
+                    if name.startswith("/{0}".format(identifier)):
+                        con_ids.append(con['Id'])
+                        break
         # More than one match was found
         if len(con_ids) > 1:
             raise AtomicError("Multiple matches were found for {0}. {1}"

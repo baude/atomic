@@ -229,6 +229,16 @@ _atomic_run() {
 	esac
 }
 
+_atomic_restart() {
+    case "$cur" in
+		*)
+            __atomic_containers_running
+			;;
+	esac
+	return 0
+
+}
+
 _atomic_install() {
 	local options_with_args="
 		--name -n
@@ -446,6 +456,7 @@ _atomic() {
 		images
 		mount
 		stop
+		restart
 		run
 		verify
 		version

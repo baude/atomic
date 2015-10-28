@@ -290,6 +290,13 @@ if __name__ == '__main__':
     #                      dest="org_name",
     #                      help=_("Organization Name"))
 
+    # atomic restart
+    restartp = subparser.add_parser(
+        "restart", help=_("restart a container"),
+        epilog="atomic restart <container> restart a container")
+    restartp.set_defaults(func=atomic.restart)
+    restartp.add_argument("image", help=_("container"))
+
     # atomic scan
     def bool_detect(myarg):
         return True if myarg.lower() in \
