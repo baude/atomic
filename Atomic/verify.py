@@ -1,9 +1,9 @@
 from . import util
 from . import Atomic
 import os
-from docker.errors import NotFound
 from operator import itemgetter
 from exceptions import StopIteration
+from docker.errors import APIError
 
 
 class Verify(Atomic):
@@ -279,3 +279,6 @@ class Verify(Atomic):
         if key in image["Labels"]:
             return image['Labels'][key]
 
+
+class NotFound(APIError):
+    pass
