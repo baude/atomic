@@ -5,7 +5,7 @@ from docker.errors import NotFound
 from operator import itemgetter
 
 class Verify(Atomic):
-    DEBUG = True
+    DEBUG = False
 
     def verify(self):
         """
