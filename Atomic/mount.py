@@ -572,4 +572,3 @@ class DockerMount(Mount):
             self.client.remove_container(short_cid)
         self._clean_tmp_image()
 
-

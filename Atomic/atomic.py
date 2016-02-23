@@ -104,6 +104,8 @@ class Atomic(object):
                 "--name", "${NAME}",
                 "${IMAGE}"]
 
+    NO_DOCKERD = 'The docker daemon does not appear to be running.'
+
     def __init__(self):
         self.d = get_docker_client()
         self.name = None
@@ -365,7 +367,6 @@ class Atomic(object):
             pass
         except requests.exceptions.ConnectionError:
             raise NoDockerDaemon()
-
         return None
 
     def _inspect_container(self, name=None):
@@ -376,7 +377,6 @@ class Atomic(object):
         except NotFound:
             pass
         except requests.exceptions.ConnectionError as e:
-            raise NoDockerDaemon()
         return None
 
     def _get_args(self, label):
