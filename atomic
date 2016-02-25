@@ -31,6 +31,7 @@ import docker
 import Atomic
 from Atomic.diff import Diff
 from Atomic.top import Top
+from Atomic.scan import Scan
 from Atomic.verify import Verify
 from Atomic.help import AtomicHelp
 from Atomic.run import Run
@@ -389,13 +390,14 @@ if __name__ == '__main__':
     scanp = subparser.add_parser(
         "scan", help=_("scan an image or container for CVEs"),
         epilog="atomic scan <input> scans a container or image for CVEs")
-    scanp.set_defaults(func='scan')
+    scanp.set_defaults(_class=Scan, func='scan')
     scan_group = scanp.add_mutually_exclusive_group()
     scan_out = scanp.add_mutually_exclusive_group()
     scan_out.add_argument("--json", default=False, action='store_true', help=_("output json"))
     scan_out.add_argument("--detail", default=False, action='store_true', help=_("output more detail"))
     scanp.add_argument("scan_targets", nargs='*', help=_("container image"))
     scanp.add_argument("--fetch_cves", type=bool_detect, default=None,  help=_("override the behavior defined in /etc/oscapd/config.ini as to whether to download the most recent CVE data. Values can be True of False"))
+    scanp.add_argument("--scanner", choices=['openscap', 'blackduck'], default='openscap', help=_("define the intended scanner"))
     scan_group.add_argument("--all", default=False, action='store_true', help=_("scan all images (excluding intermediate layers) and containers"))
     scan_group.add_argument("--images", default=False, action='store_true', help=_("scan all images (excluding intermediate layers)"))
     scan_group.add_argument("--containers", default=False, action='store_true', help=_("scan all containers"))
@@ -531,7 +533,9 @@ if __name__ == '__main__':
     except subprocess.CalledProcessError as e:
         sys.stderr.write("\n")
         sys.exit(e.returncode)
-    except AttributeError:
+    except AttributeError as e:
         # python3 throws exception on no args to atomic
         parser.print_usage()
         sys.exit(1)
+    except Exception as e:
+        sys.stderr.write("%sn" % str(e))

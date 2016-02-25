@@ -59,5 +59,7 @@ install-only:
 
 	echo ".so man1/atomic-push.1" > $(PREFIX)/share/man/man1/atomic-upload.1
 
+	install -m 644 atomic.conf $(DESTDIR)/etc
+
 .PHONY: install
 install: all install-only
