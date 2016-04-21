@@ -570,20 +570,25 @@ if __name__ == '__main__':
         _class.set_args(args)
         _func = getattr(_class, args.func)
         sys.exit(_func())
-    except KeyboardInterrupt:
-        sys.exit(0)
-    except (ValueError, IOError, docker.errors.DockerException, NoDockerDaemon) as e:
-        sys.stderr.write("%s\n" % str(e))
-        sys.exit(1)
-    except subprocess.CalledProcessError as e:
-        sys.stderr.write("\n")
-        sys.exit(e.returncode)
-    except AttributeError:
-        # python3 throws exception on no args to atomic
-        parser.print_usage()
-        sys.exit(1)
     except Exception as e:
         if args.debug:
+            # if debug is set, print the traceback
+            # for better debug
             traceback.print_exc(file=sys.stdout)
         else:
-            sys.stderr.write("%sn" % str(e))
+            try:
+                raise e
+            except KeyboardInterrupt:
+                sys.exit(0)
+            except (ValueError, IOError, docker.errors.DockerException, NoDockerDaemon) as e:
+                sys.stderr.write("%s\n" % str(e))
+                sys.exit(1)
+            except subprocess.CalledProcessError as e:
+                sys.stderr.write("\n")
+                sys.exit(e.returncode)
+            except AttributeError:
+                # python3 throws exception on no args to atomic
+                parser.print_usage()
+                sys.exit(1)
+            except Exception as e:
+                sys.stderr.write("%sn" % str(e))

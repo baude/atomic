@@ -676,7 +676,7 @@ class Atomic(object):
                 args.append(self.name)
                 continue
             args.append(c)
-        return " ".join(args)
+        return " ".join([x.decode('utf-8') for x in args])
 
     def get_fq_name(self, image_info):
         if len(image_info['RepoTags']) > 1:

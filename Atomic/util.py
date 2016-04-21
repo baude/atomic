@@ -82,9 +82,12 @@ def subp(cmd, cwd=None):
 
 
 def check_call(cmd, env=os.environ, stdin=None, stderr=None, stdout=None):
-    # Make sure cmd is a list
-    if not isinstance(cmd, list):
+    # break command into list
+    try:
         cmd = shlex.split(cmd)
+    except UnicodeEncodeError:
+        # The command contains a non-ascii character
+        cmd = shlex.split(" ".join([x.encode('utf-8') for x in cmd.split()]))
     return subprocess.check_call(cmd, env=env, stdin=stdin, stderr=stderr, stdout=stdout)
 
 def default_container_context():
@@ -99,7 +102,7 @@ def default_container_context():
 
 def write_out(output, lf="\n"):
     sys.stdout.flush()
-    sys.stdout.write(str(output) + lf)
+    sys.stdout.write(output + lf)
 
 
 def output_json(json_data):
