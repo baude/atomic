@@ -71,6 +71,7 @@ class HelpByDefaultArgumentParser(argparse.ArgumentParser):
     def error(self, message):
         write_err('%s: %s' % (self.prog, message))
         write_err("Try '%s --help' for more information." % self.prog)
+        self.print_help()
         sys.exit(2)
 
     def print_usage(self, message="too few arguments"):
