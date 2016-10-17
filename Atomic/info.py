@@ -62,6 +62,10 @@ class Info(Atomic):
             return [self._get_layer(self.image)]
 
     def get_version(self):
+        if self.syscontainers.has_image(self.image):
+            iid = self.syscontainers.version(self.image)
+            return [{'Image': [self.image], 'Version': "", 'iid': iid}]
+
         versions = []
         for layer in self.version():
             version = layer["Version"]
