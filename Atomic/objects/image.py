@@ -32,7 +32,6 @@ class Image(object):
         self.graph_driver = None
         self.config = {}
         self._fq_name = None
-
         self._instantiate()
 
     def __gt__(self, other):
