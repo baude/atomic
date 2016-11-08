@@ -13,8 +13,15 @@ from Atomic.objects.layer import Layer
 class DockerBackend(Backend):
     def __init__(self):
         self.input = None
-        self.d = get_docker_client()
-        self._ping()
+        self._d = None
+
+    @property
+    def d(self):
+        if not self._d:
+            self._d = get_docker_client()
+            self._ping()
+            return self._d
+        return self._d
 
     @property
     def backend(self):
@@ -28,7 +35,6 @@ class DockerBackend(Backend):
         img_obj = self.inspect_image(image=img)
         if img_obj:
             return img_obj
-
         name_search = util.image_by_name(img, images=image_info)
         if len(name_search) > 0:
             if len(name_search) > 1:
@@ -42,7 +48,7 @@ class DockerBackend(Backend):
                                  "matching '{0}'. They are:\n    {1} \n{2}"
                                  .format(img, "\n    ".join(repo_tags),
                                          err_append))
-            return self._make_image(name_search, self._inspect_image(name_search), deep=True)
+            return self._make_image(img, self._inspect_image(img), deep=True)
         # No dice
         return None
 
@@ -105,6 +111,8 @@ class DockerBackend(Backend):
             # Add in the deep inspection stuff
             con_obj.status = con_struct['State']['Status']
             con_obj.running = con_struct['State']['Running']
+            con_obj.image = con_struct['Image']
+
 
         return con_obj
 
