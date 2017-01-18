@@ -97,6 +97,9 @@ class DockerBackend(Backend):
         img_obj = Image(image, remote=remote)
         img_obj.backend = self
 
+        if img_struct is None:
+            return img_obj
+
         if not remote:
             img_obj.id = img_struct['Id']
             img_obj.repotags = img_struct['RepoTags']

@@ -53,6 +53,9 @@ class RegistryConnection():
         self.pinged = False
         self.verify = True
         self.port = None
+        self.basic_auth_headers = None
+        self.token_realm = None
+        self.basic_token = None
 
     def inspect_schema1(self, name, tag):
         v1compat = json.loads(self.manifest_json['history'][0]['v1Compatibility'])
@@ -111,23 +114,38 @@ class RegistryConnection():
             tokens[registry] = token_data['auths'][registry]['auth']
         return tokens
 
-    def get(self, url, skip_auth=False):
-        if self.needs_auth and not skip_auth:
+    def get(self, url, skip_auth=False, use_basic_auth=False):
+        if self.needs_auth and not skip_auth and not use_basic_auth:
             if not self.token:
                 self.get_token()
             headers = self.get_auth_headers()
         else:
             headers = self.headers
 
-        self.debug("GET_URL: %s" % url)
-        self.debug("GET_HEADER: %s" % headers)
-        self.debug("GET_VERIFY: %s" % self.verify)
-        results = requests.get(url, headers=headers, verify=self.verify)
+        self.write_debug("GET_URL: %s" % url)
+        self.write_debug("GET_HEADER: %s" % headers)
+        self.write_debug("GET_VERIFY: %s" % self.verify)
+        self.write_debug("GET_BASIC_AUTH: %s" % use_basic_auth)
+
+        if use_basic_auth:
+            auth_user, auth_pass = self.basic_token.split(':')
+            results = requests.get(url, headers=headers, verify=self.verify, auth=(auth_user, auth_pass))
+        else:
+            results = requests.get(url, headers=headers, verify=self.verify)
+        self.write_debug("GET_RESPONSE_REASON: {}".format(results.reason))
+        if results._content: # pylint: disable=protected-access
+            self.write_debug("GET_RESPONSE_CONTENT: {}".format(str(results._content))) # pylint: disable=protected-access
         if results.reason == "Unauthorized" and self.needs_auth:
             # Auth registries dont tell us if credentials are bad or the GET URL is bad
             raise RegistryAuthError("Unable to authenticate to {} or repository, image, "
                                     "or tags names are bad".format(self.registry))
+        self.write_debug("")
         return results
+
+    def _create_basic_auth_header(self):
+        headers = self.headers.copy()
+        headers['Authorization'] = "Basic {}".format(self.basic_token)
+        self.basic_auth_headers = headers
 
     def _create_self_auth_headers(self):
         headers = self.headers.copy()
@@ -139,7 +157,7 @@ class RegistryConnection():
             self._create_self_auth_headers()
         return self.auth_headers
 
-    def debug(self, msg):
+    def write_debug(self, msg):
         if self._debug:
             util.write_out(msg)
 
@@ -165,14 +183,18 @@ class RegistryConnection():
             self.token = self.get(url, skip_auth=True).json()['token']
         elif not self.token_scope and not self.token_service and self.hostname in local_tokens:
             host_token = (local_tokens[self.hostname]).encode()
-            self.token = str(b64decode(host_token)).split(':')[-1]
+            self.write_debug("Obtaining token using credentials for {}".format(self.token_realm))
+            self.basic_token = str(b64decode(host_token).decode('utf-8'))
+            url = '{}'.format(self.token_realm)
+            self.write_debug("TOKEN_URL: {}".format(url))
+            self.token = self.get(url, use_basic_auth=True).json()['token']
         else:
             raise RegistryAuthError("Failed to obtain token")
-        self.debug("Set token to {}".format(self.token))
+        self.write_debug("Set token to {}".format(self.token))
 
     def set_token_scope(self, repo, image):
         self.token_scope = "repository:{}/{}:pull".format(repo, image)
-        self.debug("Set token_scope to {}".format(self.token_scope))
+        self.write_debug("Set token_scope to {}".format(self.token_scope))
 
     def hostname_has_port(self):
         if len(self.hostname.split(':')) > 1:
@@ -252,6 +274,9 @@ class RegistryInspect():
         registry is unknown
         :return: String fqdn
         """
+        def _unable_out(_error):
+            util.write_out("Unable to connect to {} due to '{}'".format(self.registry, _error))
+
         for i in [x for x in self.registries if x['search']]:
             docker_repo = False
             self.registry = i['name']
@@ -278,12 +303,16 @@ class RegistryInspect():
                 fq += "/{}:{}".format(self.image, self.tag)
                 return fq
 
-            except RegistryAuthError:
+            except RegistryAuthError as e:
+                _unable_out(e)
                 self.rc = RegistryConnection(debug=self.debug)
-            except RegistryInspectError:
+            except RegistryInspectError as e:
+                _unable_out(e)
                 self.rc = RegistryConnection(debug=self.debug)
             if docker_repo:
                 self.repo = None
+
+
         raise RegistryInspectError("Unable to resolve {}".format(self.orig_input))
 
     def _ping(self, _scheme, port=None):
@@ -343,7 +372,9 @@ class RegistryInspect():
         if rc in [2, 4] and not self.rc.hostname_has_port():
             if self._ping(scheme, port=5000) == 0:
                 return _set_auth()
-        else:
+        if rc == 3:
+            return _set_auth()
+        else:  # Right in here is the problem...when using basic auth
             # Now do http
             scheme = 'http'
             rc = self._ping(scheme)
