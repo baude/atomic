@@ -341,10 +341,20 @@ class atomic_dbus(slip.dbus.service.Object):
 
     # atomic scan section
     # The ScanList method will return a list of all scanners.
-    @slip.dbus.polkit.require_auth("org.atomic.read")
+    #@slip.dbus.polkit.require_auth("org.atomic.read")
+    @dbus.service.method("org.atomic", in_signature='',out_signature='s', sender_keyword='dbus_sender')
     @dbus.service.method("org.atomic", in_signature='',
                          out_signature= 's')
-    def ScanList(self):
+    def ScanList(self, dbus_sender):
+        _polkit_name= 'org.freedesktop.PolicyKit1'
+        _polkit_path= '/org/freedesktop/PolicyKit1/Authority'
+        _polkit_interface = 'org.freedesktop.PolicyKit1.Authority'
+
+        bus = dbus.SystemBus()
+        bus_object = bus.get_object(_polkit_name, _polkit_path)
+        authorized, _, _ = bus_object.CheckAuthorization(("system-bus-name", {"name": dbus_sender}), "org.atomic.read", '', 1, "", dbus_interface=_polkit_interface)
+        if not authorized:
+            raise ValueError("You are not authorized")
         scan_list = Scan()
         args = self.Args()
         scan_list.set_args(args)
