@@ -195,10 +195,14 @@ fi
 
 
 if [ ! -n "${TEST_UNIT+ }" ]; then
-    for tf in `find ./tests/integration/ -name test_*.sh`; do
+    for tf in `find ./tests/integration/ -name test_*`; do
 
         if [ -n "${TEST_INTEGRATION+ }" ]; then
-            tfbn=$(basename "$tf" .sh)
+		bn=$(basename "$tf")
+		tfbn="${basename%.*}"
+		extension="${basename##.*}"
+	fi
+
             tfbn="${tfbn#test_}"
             if [[ " $TEST_INTEGRATION " != *" $tfbn "* ]]; then
                 continue
@@ -213,7 +217,8 @@ if [ ! -n "${TEST_UNIT+ }" ]; then
 
         printf "Running %-40.40s" "$(basename ${tf})...."
         printf "\n==== ${tf} ====\n" >> ${LOG}
-
+	if ${extension} == "py"; then
+	    tf="${PYTHON} ${tf}"
         if ${tf} &>> ${LOG}; then
             printf "PASS\n";
         else
