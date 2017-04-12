@@ -6,6 +6,7 @@ import sys
 import json
 import subprocess
 import collections
+from contextlib import contextmanager
 from fnmatch import fnmatch as matches
 import os
 import selinux
@@ -800,44 +801,27 @@ def load_scan_result_file(file_name):
     return json.loads(open(os.path.join(file_name), "r").read())
 
 
-def file_lock(func):
-    lock_file_name = "{}.lock".format(os.path.join(os.path.dirname(ATOMIC_INSTALL_JSON), "." + os.path.basename(ATOMIC_INSTALL_JSON)))
-
-    def get_lock():
-        '''
-        Obtains a read-only file lock on the install data
-        :return: 
-        '''
-        time_out = 0
-        f_lock = False
-        # Create the temporary lockfile if it doesn't exist
-        if not os.path.exists(lock_file_name):
-            open(lock_file_name, 'a').close()
-
-        with open(lock_file_name, "r") as f:
-            while time_out < 10.5: # Ten second attempt to get a lock
-                try:
-                    fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                    f_lock = True
-                    break
-                except IOError:
-                    time.sleep(.5)
-                    time_out += .5
+@contextmanager
+def file_lock(path):
+    lock_file_name = "{}.lock".format(path)
+    time_out = 0
+    f_lock = False
+    with open(lock_file_name, "a") as f:
+        while time_out < 10.5: # Ten second attempt to get a lock
+            try:
+                fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                f_lock = True
+                break
+            except IOError:
+                time.sleep(.5)
+                time_out += .5
         if not f_lock:
-            raise ValueError("Unable to get file lock for {}".format(ATOMIC_INSTALL_JSON))
+            raise ValueError("Unable to get file lock for {}".format(lock_file_name))
 
-    def release_lock():
-        with open(lock_file_name, "r") as f:
-            fcntl.flock(f, fcntl.LOCK_UN)
-
-    def wrapper(*args, **kwargs):
-        get_lock()
-        ret = func(*args, **kwargs)
-        release_lock()
-        return ret
-
-    return wrapper
-
+        # Call the user code
+        yield
+        # Now unlock
+        fcntl.flock(f, fcntl.LOCK_UN)
 
 # Records additional data for containers outside of the native storage (docker/ostree)
 class InstallData(object):
@@ -869,17 +853,14 @@ class InstallData(object):
         shutil.move(temp_file.name, ATOMIC_INSTALL_JSON)
 
     @classmethod
-    @file_lock
     def read_install_data(cls):
-        if os.path.exists(ATOMIC_INSTALL_JSON):
-            read_data = cls._read_install_data()
-            return read_data
-        return {}
+        with file_lock(ATOMIC_INSTALL_JSON):
+            return cls._read_install_data()
 
     @classmethod
-    @file_lock
     def write_install_data(cls, new_data):
-        cls._write_install_data(new_data)
+        with file_lock(ATOMIC_INSTALL_JSON):
+            cls._write_install_data(new_data)
 
     @classmethod
     def get_install_name_by_id(cls, iid, install_data=None):
