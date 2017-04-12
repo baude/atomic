@@ -827,40 +827,32 @@ def file_lock(path):
 class InstallData(object):
 
     @classmethod
-    def _read_install_data(cls):
-        try:
-            with open(ATOMIC_INSTALL_JSON, 'r') as f:
-                # Backwards compatibilty - we previously created an empty file explicitly;
-                # see https://github.com/projectatomic/atomic/pull/966
-                if os.fstat(f.fileno()).st_size == 0:
-                    return {}
-                return json.load(f)
-        except IOError as e:
-            if e.errno == errno.ENOENT:
-                return {}
-            raise e
-
-    @classmethod
-    def _write_install_data(cls, new_data):
-        install_data = cls._read_install_data()
-        for x in new_data:
-            install_data[x] = new_data[x]
-        temp_file = tempfile.NamedTemporaryFile(mode='w', delete=False)
-        json.dump(install_data, temp_file)
-        temp_file.close()
-        if not os.path.exists(ATOMIC_VAR_LIB):
-            os.makedirs(ATOMIC_VAR_LIB)
-        shutil.move(temp_file.name, ATOMIC_INSTALL_JSON)
-
-    @classmethod
     def read_install_data(cls):
         with file_lock(ATOMIC_INSTALL_JSON):
-            return cls._read_install_data()
+            try:
+                with open(ATOMIC_INSTALL_JSON, 'r') as f:
+                    # Backwards compatibilty - we previously created an empty file explicitly;
+                    # see https://github.com/projectatomic/atomic/pull/966
+                    if os.fstat(f.fileno()).st_size == 0:
+                        return {}
+                    return json.load(f)
+            except IOError as e:
+                if e.errno == errno.ENOENT:
+                    return {}
+                raise e
 
     @classmethod
     def write_install_data(cls, new_data):
         with file_lock(ATOMIC_INSTALL_JSON):
-            cls._write_install_data(new_data)
+            install_data = cls._read_install_data()
+            for x in new_data:
+                install_data[x] = new_data[x]
+                temp_file = tempfile.NamedTemporaryFile(mode='w', delete=False)
+                json.dump(install_data, temp_file)
+                temp_file.close()
+                if not os.path.exists(ATOMIC_VAR_LIB):
+                    os.makedirs(ATOMIC_VAR_LIB)
+                shutil.move(temp_file.name, ATOMIC_INSTALL_JSON)
 
     @classmethod
     def get_install_name_by_id(cls, iid, install_data=None):
@@ -872,7 +864,6 @@ class InstallData(object):
         raise ValueError("Unable to find {} in installed image data ({}). Re-run command with -i to ignore".format(id, ATOMIC_INSTALL_JSON))
 
     @classmethod
-    @file_lock
     def delete_by_id(cls, iid, ignore=False):
         install_data = cls._read_install_data()
         try:
