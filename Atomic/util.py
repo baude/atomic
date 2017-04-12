@@ -843,8 +843,8 @@ class InstallData(object):
 
     @classmethod
     def write_install_data(cls, new_data):
+        install_data = cls.read_install_data()
         with file_lock(ATOMIC_INSTALL_JSON):
-            install_data = cls._read_install_data()
             for x in new_data:
                 install_data[x] = new_data[x]
                 temp_file = tempfile.NamedTemporaryFile(mode='w', delete=False)
@@ -857,7 +857,7 @@ class InstallData(object):
     @classmethod
     def get_install_name_by_id(cls, iid, install_data=None):
         if not install_data:
-            install_data = cls._read_install_data()
+            install_data = cls.read_install_data()
         for installed_image in install_data:
             if install_data[installed_image]['id'] == iid:
                 return installed_image
@@ -865,7 +865,7 @@ class InstallData(object):
 
     @classmethod
     def delete_by_id(cls, iid, ignore=False):
-        install_data = cls._read_install_data()
+        install_data = cls.read_install_data()
         try:
             id_key = InstallData.get_install_name_by_id(iid, install_data=install_data)
         except ValueError as e:
@@ -873,7 +873,7 @@ class InstallData(object):
                 raise ValueError(str(e))
             return
         del install_data[id_key]
-        return cls._write_install_data(install_data)
+        return cls.write_install_data(install_data)
 
     @classmethod
     def image_installed(cls, img_object):
