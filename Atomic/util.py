@@ -847,12 +847,12 @@ class InstallData(object):
         with file_lock(ATOMIC_INSTALL_JSON):
             for x in new_data:
                 install_data[x] = new_data[x]
-                temp_file = tempfile.NamedTemporaryFile(mode='w', delete=False)
-                json.dump(install_data, temp_file)
-                temp_file.close()
-                if not os.path.exists(ATOMIC_VAR_LIB):
-                    os.makedirs(ATOMIC_VAR_LIB)
-                shutil.move(temp_file.name, ATOMIC_INSTALL_JSON)
+            temp_file = tempfile.NamedTemporaryFile(mode='w', delete=False)
+            json.dump(install_data, temp_file)
+            temp_file.close()
+            if not os.path.exists(ATOMIC_VAR_LIB):
+                os.makedirs(ATOMIC_VAR_LIB)
+            shutil.move(temp_file.name, ATOMIC_INSTALL_JSON)
 
     @classmethod
     def get_install_name_by_id(cls, iid, install_data=None):
