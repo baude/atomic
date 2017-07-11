@@ -1,4 +1,4 @@
-FROM centos
+FROM registry.fedoraproject.org/fedora-minimal
 
 LABEL "Name"="atomic-test-runonce"\
       "atomic.run"="once"\
