@@ -95,7 +95,12 @@ ${ATOMIC} images list -f type=ostree > ${WORK_DIR}/images.out
 assert_not_matches "busybox" ${WORK_DIR}/images.out
 
 # Test that pruning now removes all images
+echo "baude"
+${ATOMIC} images list --all
 ${ATOMIC} images prune
+${ATOMIC} images prune
+${ATOMIC} images prune
+${ATOMIC} images list --all
 ${ATOMIC} images list -f type=ostree --all > ${WORK_DIR}/images.all.out
 assert_not_matches "<none>" ${WORK_DIR}/images.all.out
 
