@@ -110,9 +110,6 @@ class Scan(Atomic):
         scan_type = self.get_scan_type()
 
         # Load the atomic config file and check scanner settings
-        yaml_error = "The image name or scanner arguments for '{}' is not " \
-                     "defined in /etc/atomic.conf".format(self.scanner)
-
         scanner_image_name, scanner_args, custom_args = get_scan_info(self.scanner, scan_type)
 
         if not isinstance(scanner_args, list):
@@ -120,7 +117,9 @@ class Scan(Atomic):
                              " ([]) form.".format(self.scanner))
 
         if None in [scanner_image_name, scanner_args]:
-            raise ValueError(yaml_error)
+            sconf_file = util.get_scanner_conf_path_by_name(self.scanner)
+            raise ValueError("The scanner configuration for '{}' in '{}' is missing its image name "
+                             "or scanner arguments".format(self.scanner, sconf_file))
 
         self.results_dir = os.path.join(self.results, self.scanner, self.cur_time)
 

@@ -486,6 +486,22 @@ def get_atomic_config_item(config_items, atomic_config=None, default=None):
     else:
         return default
 
+def get_scanner_conf_path_by_name(scanner_name):
+    if not os.path.exists(ATOMIC_CONFD):
+        raise ValueError("{} does not exist".format(ATOMIC_CONFD))
+    files = [os.path.join(ATOMIC_CONFD, x) for x in os.listdir(ATOMIC_CONFD) if os.path.isfile(os.path.join(ATOMIC_CONFD, x))]
+    for f in files:
+        with open(f, 'r') as conf_file:
+            try:
+                temp_conf = yaml_load(conf_file)
+                if temp_conf.get('type') == "scanner" and temp_conf.get("scanner_name") == scanner_name:
+                    return conf_file.name
+            except YAMLError:
+                pass
+            except AttributeError:
+                pass
+    raise ValueError("Unable to correlate {} to its configuration file".format(scanner_name))
+
 def get_scanners():
     scanners = []
     if not os.path.exists(ATOMIC_CONFD):
