@@ -154,6 +154,9 @@ class Scan(Atomic):
         # Create the output directory
         os.makedirs(self.results_dir)
 
+        # Record target information
+        self.record_inspect_info()
+
         docker_args = ['docker', 'run', '-t', '--rm', '-v', '/etc/localtime:/etc/localtime',
                        '-v', '{}:{}'.format(self.chroot_dir, '/scanin'), '-v',
                        '{}:{}:rw,Z'.format(self.results_dir, '/scanout')]
@@ -536,3 +539,18 @@ class Scan(Atomic):
 
     def remediate(self, script, iid, results_dir):
         util.check_call([sys.executable, script, '--id', iid, '--results_dir', results_dir])
+
+
+    def record_inspect_info(self):
+        """
+        Writes inspect information for each object passed to the scanner and
+        stores them in results_dir/inspect_info.json
+        :return: None
+        """
+
+        inspect = []
+        for scan_object in self.scan_list:
+            inspect.append(scan_object.config)
+
+        with open(os.path.join(self.results_dir, 'inspect_info.json'), 'w') as f:
+            json.dump(inspect, f, indent=4, separators=(',', ': '))
